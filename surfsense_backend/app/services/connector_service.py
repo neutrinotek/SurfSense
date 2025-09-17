@@ -1,4 +1,5 @@
 import asyncio
+import json
 from typing import Any
 
 from linkup import LinkupClient
@@ -8,6 +9,7 @@ from sqlalchemy.future import select
 from tavily import TavilyClient
 
 from app.agents.researcher.configuration import SearchMode
+from app.connectors.mcpo_connector import MCPOConnector, MCPOResult
 from app.db import (
     Chunk,
     Document,
@@ -1753,6 +1755,169 @@ class ConnectorService:
                 "type": "LINKUP_API",
                 "sources": [],
             }, []
+
+    async def search_mcpo(
+        self,
+        user_query: str,
+        user_id: str,
+        search_space_id: int,
+        top_k: int = 20,
+        search_mode: SearchMode = SearchMode.CHUNKS,
+    ) -> tuple:
+        """Invoke MCPO-managed MCP tools and normalize the returned data."""
+
+        _ = (search_space_id, search_mode)
+
+        connector = await self.get_connector_by_type(
+            user_id, SearchSourceConnectorType.MCPO_CONNECTOR
+        )
+
+        connector_name = connector.name if connector else "MCPO"
+        empty_result = {
+            "id": 60,
+            "name": connector_name,
+            "type": "MCPO_CONNECTOR",
+            "sources": [],
+        }
+
+        if not connector:
+            return empty_result, []
+
+        config = connector.config or {}
+
+        static_args = config.get("MCPO_STATIC_ARGS") or {}
+        if isinstance(static_args, str):
+            try:
+                static_args = json.loads(static_args)
+            except json.JSONDecodeError:
+                static_args = {}
+        if not isinstance(static_args, dict):
+            static_args = {}
+
+        timeout_value = config.get("MCPO_TIMEOUT")
+        try:
+            timeout = float(timeout_value) if timeout_value not in (None, "") else None
+        except (TypeError, ValueError):
+            timeout = None
+
+        query_param = config.get("MCPO_QUERY_PARAM")
+        base_url = config.get("MCPO_BASE_URL", "")
+        server_identifier = config.get("MCPO_SERVER", "")
+        openapi_url = config.get("MCPO_OPENAPI_URL")
+
+        try:
+            base_client = MCPOConnector(
+                base_url=base_url,
+                server=server_identifier,
+                tool=None,
+                api_key=config.get("MCPO_API_KEY"),
+                query_param=query_param if query_param else None,
+                static_args=static_args,
+                result_path=config.get("MCPO_RESULT_PATH"),
+                timeout=timeout,
+                openapi_url=openapi_url,
+            )
+        except ValueError as exc:
+            print(f"Invalid MCPO connector configuration: {exc!s}")
+            return empty_result, []
+
+        configured_tools = config.get("MCPO_TOOLS") or []
+        if isinstance(configured_tools, str):
+            configured_tools = [configured_tools]
+
+        if not configured_tools:
+            # Fall back to legacy single-tool configuration if present
+            legacy_tool = config.get("MCPO_TOOL")
+            if isinstance(legacy_tool, str) and legacy_tool.strip():
+                configured_tools = [legacy_tool.strip()]
+
+        tools_to_query: list[str] = []
+        for tool_name in configured_tools:
+            if isinstance(tool_name, str) and tool_name.strip():
+                tools_to_query.append(tool_name.strip())
+
+        if not tools_to_query:
+            try:
+                tools_to_query = await base_client.list_tools()
+            except Exception as exc:
+                print(f"Unable to discover MCPO tools from OpenAPI schema: {exc!s}")
+                return empty_result, []
+
+        if not tools_to_query:
+            return empty_result, []
+
+        aggregated_results: list[tuple[str, MCPOResult]] = []
+
+        for tool_name in tools_to_query:
+            try:
+                tool_client = base_client.with_tool(tool_name)
+            except ValueError as exc:
+                print(f"Skipping MCPO tool '{tool_name}': {exc!s}")
+                continue
+
+            try:
+                tool_results = await tool_client.search(user_query)
+            except Exception as exc:
+                print(f"Error querying MCPO tool '{tool_name}': {exc!s}")
+                continue
+
+            for result in tool_results:
+                aggregated_results.append((tool_name, result))
+
+        if not aggregated_results:
+            return empty_result, []
+
+        if top_k and top_k > 0:
+            aggregated_results = aggregated_results[:top_k]
+
+        sources_list = []
+        documents = []
+
+        async with self.counter_lock:
+            for tool_name, result in aggregated_results:
+                source_id = self.source_id_counter
+                description = result.description or result.content[:200]
+                title = result.title
+                if tool_name:
+                    title = f"{title} ({tool_name})"
+                sources_list.append(
+                    {
+                        "id": source_id,
+                        "title": title,
+                        "description": description,
+                        "url": result.url or "",
+                    }
+                )
+
+                metadata = dict(result.metadata)
+                if result.url and "url" not in metadata:
+                    metadata["url"] = result.url
+                metadata.setdefault("mcpo_tool", tool_name)
+
+                documents.append(
+                    {
+                        "chunk_id": source_id,
+                        "content": result.content,
+                        "score": 1.0,
+                        "document": {
+                            "id": source_id,
+                            "title": result.title,
+                            "document_type": "MCPO_CONNECTOR",
+                            "metadata": metadata,
+                        },
+                    }
+                )
+
+                self.source_id_counter += 1
+
+        result_object = {
+            "id": 60,
+            "name": connector_name,
+            "type": "MCPO_CONNECTOR",
+            "sources": sources_list,
+        }
+
+        return result_object, documents
 
     async def search_discord(
         self,

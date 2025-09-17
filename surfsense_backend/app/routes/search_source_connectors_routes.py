@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from app.connectors.github_connector import GitHubConnector
+from app.connectors.mcpo_connector import MCPOConnector
 from app.db import (
     SearchSourceConnector,
     SearchSourceConnectorType,
@@ -60,6 +61,37 @@ router = APIRouter()
 # Use Pydantic's BaseModel here
 class GitHubPATRequest(BaseModel):
     github_pat: str = Field(..., description="GitHub Personal Access Token")
+
+
+# --- Endpoint to list MCPO tools from OpenAPI ---
+@router.get("/mcpo/tools", response_model=list[str])
+async def list_mcpo_tools(
+    base_url: str = Query(..., description="MCPO Control Panel base URL"),
+    server: str = Query(..., description="MCPO server identifier"),
+    api_key: str | None = Query(None, description="Optional MCPO API key"),
+    openapi_url: str | None = Query(None, description="Override the OpenAPI schema URL"),
+    timeout: float | None = Query(None, description="Optional discovery timeout in seconds"),
+    user: User = Depends(current_active_user),
+):
+    """Discover available MCPO tools by inspecting the OpenAPI schema."""
+
+    _ = user  # The endpoint requires authentication but does not persist data
+
+    try:
+        tools = await MCPOConnector.discover_tools(
+            base_url=base_url,
+            server=server,
+            api_key=api_key,
+            openapi_url=openapi_url,
+            timeout=timeout,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.error("Failed to discover MCPO tools: %s", exc)
+        raise HTTPException(status_code=502, detail="Failed to load MCPO tools") from exc
+
+    return tools
 
 
 # --- New Endpoint to list GitHub Repositories ---
@@ -554,6 +586,12 @@ async def index_connector_content(
                 indexing_to,
             )
             response_message = "Discord indexing started in the background."
+
+        elif connector.connector_type == SearchSourceConnectorType.MCPO_CONNECTOR:
+            raise HTTPException(
+                status_code=400,
+                detail="MCPO connectors execute MCP tools in real time and cannot be indexed.",
+            )
 
         else:
             raise HTTPException(

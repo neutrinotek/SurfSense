@@ -1144,6 +1144,30 @@ async def fetch_relevant_documents(
                                 )
                             }
                         )
+                elif connector == "MCPO_CONNECTOR":
+                    (
+                        source_object,
+                        mcpo_chunks,
+                    ) = await connector_service.search_mcpo(
+                        user_query=reformulated_query,
+                        user_id=user_id,
+                        search_space_id=search_space_id,
+                        top_k=top_k,
+                        search_mode=search_mode,
+                    )
+
+                    if source_object:
+                        all_sources.append(source_object)
+                    all_raw_documents.extend(mcpo_chunks)
+
+                    if streaming_service and writer:
+                        writer(
+                            {
+                                "yield_value": streaming_service.format_terminal_info_delta(
+                                    f"🛠️ Found {len(mcpo_chunks)} MCPO tool results related to your query"
+                                )
+                            }
+                        )
                 elif connector == "CONFLUENCE_CONNECTOR":
                     (
                         source_object,
