@@ -354,10 +354,10 @@ export default function McpoConnectorPage() {
                                                         <CardHeader>
                                                                 <CardTitle className="text-2xl font-bold">Connect MCPO Control Panel</CardTitle>
                                                                 <CardDescription>
-                                                Provide the details of your MCPO deployment to access MCP tools within SurfSense.
-                                                        </CardDescription>
-                                                </CardHeader>
-                                                <CardContent>
+                                                                        Provide the details of your MCPO deployment to access MCP tools within SurfSense.
+                                                                </CardDescription>
+                                                        </CardHeader>
+                                                        <CardContent>
                                                                 <Alert className="mb-6 bg-muted">
                                                                         <Info className="h-4 w-4" />
                                                                         <AlertTitle>MCPO server required</AlertTitle>
@@ -434,7 +434,7 @@ export default function McpoConnectorPage() {
                                                                                                                         />
                                                                                                                 </FormControl>
                                                                                                                 <FormDescription>
-                                                                                                                        Optional. Leave blank to use the default <code>{baseUrl}/{server}/openapi.json</code>. Relative paths such as <code>openapi.json</code> are also supported.
+                                                                                                                        Optional. Leave blank to use the default <code>{watchedBaseUrl || "base"}/{watchedServerId || "server"}/openapi.json</code>. Relative paths such as <code>openapi.json</code> are also supported.
                                                                                                                 </FormDescription>
                                                                                                                 <FormMessage />
                                                                                                         </FormItem>

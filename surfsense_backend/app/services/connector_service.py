@@ -1826,15 +1826,16 @@ class ConnectorService:
             configured_tools = [configured_tools]
 
         if not configured_tools:
-            # Fall back to legacy single-tool configuration if present
             legacy_tool = config.get("MCPO_TOOL")
             if isinstance(legacy_tool, str) and legacy_tool.strip():
                 configured_tools = [legacy_tool.strip()]
 
         tools_to_query: list[str] = []
         for tool_name in configured_tools:
-            if isinstance(tool_name, str) and tool_name.strip():
-                tools_to_query.append(tool_name.strip())
+            if isinstance(tool_name, str):
+                sanitized = tool_name.strip()
+                if sanitized:
+                    tools_to_query.append(sanitized)
 
         if not tools_to_query:
             try:
@@ -1880,6 +1881,7 @@ class ConnectorService:
                 title = result.title
                 if tool_name:
                     title = f"{title} ({tool_name})"
+
                 sources_list.append(
                     {
                         "id": source_id,
@@ -1892,7 +1894,8 @@ class ConnectorService:
                 metadata = dict(result.metadata)
                 if result.url and "url" not in metadata:
                     metadata["url"] = result.url
-                metadata.setdefault("mcpo_tool", tool_name)
+                if tool_name:
+                    metadata.setdefault("mcpo_tool", tool_name)
 
                 documents.append(
                     {
@@ -1901,7 +1904,7 @@ class ConnectorService:
                         "score": 1.0,
                         "document": {
                             "id": source_id,
-                            "title": result.title,
+                            "title": title,
                             "document_type": "MCPO_CONNECTOR",
                             "metadata": metadata,
                         },
