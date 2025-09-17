@@ -44,7 +44,13 @@ class MCPOConnector:
 
         self.base_url = base_url.rstrip("/")
         self.server = server.strip("/")
-        self.tool = tool.strip("/") if tool else None
+        if tool is None:
+            self.tool: str | None = None
+        else:
+            stripped_tool = tool.strip()
+            if not stripped_tool:
+                raise ValueError("MCPO tool name cannot be empty")
+            self.tool = stripped_tool.strip("/")
         self.api_key = api_key.strip() if api_key else None
         self.query_param = query_param.strip() if query_param else None
         self.static_args = static_args or {}
@@ -52,6 +58,7 @@ class MCPOConnector:
             token.strip() for token in result_path.split(".") if token.strip()
         ] if result_path else []
         self.timeout = timeout
+
         server_base = self.base_url
         if self.server:
             server_base = f"{server_base}/{self.server}"
