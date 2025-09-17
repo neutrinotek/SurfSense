@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -51,13 +52,24 @@ class MCPOConnector:
             token.strip() for token in result_path.split(".") if token.strip()
         ] if result_path else []
         self.timeout = timeout
+        server_base = self.base_url
+        if self.server:
+            server_base = f"{server_base}/{self.server}"
+        server_base = server_base.rstrip("/")
+
         if openapi_url:
             candidate = openapi_url.strip()
-            self.openapi_url = candidate if candidate else None
+            if candidate:
+                if candidate.startswith(("http://", "https://")):
+                    self.openapi_url = candidate
+                else:
+                    self.openapi_url = urljoin(f"{server_base}/", candidate)
+            else:
+                self.openapi_url = None
         else:
             self.openapi_url = (
-                f"{self.base_url}/{self.server}/openapi.json"
-                if self.base_url and self.server
+                urljoin(f"{server_base}/", "openapi.json")
+                if server_base
                 else None
             )
 
@@ -86,7 +98,8 @@ class MCPOConnector:
         if not self.tool:
             raise ValueError("MCPO tool name has not been configured")
 
-        url = f"{self.base_url}/{self.server}/{self.tool}"
+        server_base = f"{self.base_url}/{self.server}".rstrip("/")
+        url = urljoin(f"{server_base}/", self.tool)
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["Authorization"] = f"Bearer {self.api_key}"
@@ -180,6 +193,34 @@ class MCPOConnector:
 
         tools: list[str] = []
         server_prefix = self.server.strip("/")
+        base_paths: list[list[str]] = []
+        if server_prefix:
+            base_paths.append([segment for segment in server_prefix.split("/") if segment])
+
+        servers = payload.get("servers")
+        if isinstance(servers, list):
+            for server_entry in servers:
+                if not isinstance(server_entry, dict):
+                    continue
+                url_value = server_entry.get("url")
+                if not isinstance(url_value, str):
+                    continue
+                parsed = urlparse(url_value)
+                path = parsed.path
+                if not path:
+                    path = url_value if url_value.startswith("/") else f"/{url_value}"
+                path_segments = [segment for segment in path.split("/") if segment]
+                if path_segments:
+                    base_paths.append(path_segments)
+
+        unique_base_paths: list[list[str]] = []
+        for path in base_paths:
+            if path not in unique_base_paths:
+                unique_base_paths.append(path)
+
+        base_paths = unique_base_paths
+
+        seen: set[str] = set()
 
         for raw_path, operations in paths.items():
             if not isinstance(raw_path, str) or not isinstance(operations, dict):
@@ -193,21 +234,30 @@ class MCPOConnector:
             if not segments:
                 continue
 
-            if server_prefix and segments[0] != server_prefix:
+            normalized_segments = segments
+            for base_path in base_paths:
+                if base_path and normalized_segments[: len(base_path)] == base_path:
+                    normalized_segments = normalized_segments[len(base_path) :]
+                    break
+
+            if not normalized_segments:
                 continue
 
             if not any(method.lower() == "post" for method in operations):
                 continue
 
-            if server_prefix:
-                if len(segments) < 2:
-                    continue
-                candidate = segments[-1]
-            else:
-                candidate = segments[-1]
+            candidate = normalized_segments[-1]
+            if not candidate or candidate == server_prefix:
+                continue
 
-            if candidate and candidate not in tools:
-                tools.append(candidate)
+            candidate_key = candidate.strip()
+            lowered = candidate_key.lower()
+            if lowered in {"openapi.json", "openapi", "docs"}:
+                continue
+
+            if candidate_key not in seen:
+                seen.add(candidate_key)
+                tools.append(candidate_key)
 
         return tools
 

@@ -36,13 +36,34 @@ import { EnumConnectorName } from "@/contracts/enums/connector";
 import { getConnectorIcon } from "@/contracts/enums/connectorIcons";
 import { useSearchSourceConnectors } from "@/hooks/useSearchSourceConnectors";
 
+const isValidOpenApiInput = (value: string) => {
+        if (!value) {
+                return true;
+        }
+
+        try {
+                // Accept absolute URLs
+                new URL(value);
+                return true;
+        } catch {
+                // Fall back to allowing relative paths without whitespace
+                return !/\s/.test(value);
+        }
+};
+
 const mcpoConnectorFormSchema = z.object({
         name: z.string().min(3, {
                 message: "Connector name must be at least 3 characters.",
         }),
         baseUrl: z.string().url({ message: "Enter a valid MCPO base URL." }),
         serverId: z.string().min(1, { message: "Server identifier is required." }),
-        openapiUrl: z.string().url({ message: "Enter a valid OpenAPI URL." }),
+        openapiUrl: z
+                .string()
+                .transform((value) => value.trim())
+                .refine(
+                        (value) => value === "" || isValidOpenApiInput(value),
+                        { message: "Enter a valid OpenAPI URL or relative path." }
+                ),
         apiKey: z.string().optional(),
         queryParam: z.string().optional(),
         staticArgs: z.string().optional(),
@@ -50,7 +71,7 @@ const mcpoConnectorFormSchema = z.object({
         timeout: z.string().optional(),
         selectedTools: z
                 .array(z.string().min(1, { message: "Tool names cannot be empty." }))
-                .min(1, { message: "Select at least one tool to query." }),
+                .default([]),
 });
 
 type McpoConnectorFormValues = z.infer<typeof mcpoConnectorFormSchema>;
@@ -118,9 +139,15 @@ export default function McpoConnectorPage() {
                                 setIsLoadingTools(true);
                                 setToolError(null);
 
+                                const sanitizedBaseUrl = values.baseUrl.trim().replace(/\/+$/, "");
+                                const sanitizedServer = values.serverId
+                                        .trim()
+                                        .replace(/^\/+/, "")
+                                        .replace(/\/+$/, "");
+
                                 const params = new URLSearchParams({
-                                        base_url: values.baseUrl.trim(),
-                                        server: values.serverId.trim(),
+                                        base_url: sanitizedBaseUrl,
+                                        server: sanitizedServer,
                                 });
 
                                 if (values.apiKey && values.apiKey.trim()) {
@@ -129,6 +156,10 @@ export default function McpoConnectorPage() {
 
                                 if (values.openapiUrl && values.openapiUrl.trim()) {
                                         params.set("openapi_url", values.openapiUrl.trim());
+                                }
+
+                                if (values.timeout && values.timeout.trim()) {
+                                        params.set("timeout", values.timeout.trim());
                                 }
 
                                 const response = await fetch(
@@ -145,17 +176,34 @@ export default function McpoConnectorPage() {
                                         throw new Error(response.statusText || "Failed to fetch tools");
                                 }
 
-                                const tools: string[] = await response.json();
-                                if (!Array.isArray(tools) || tools.length === 0) {
+                                const tools: unknown = await response.json();
+                                const sanitizedTools = Array.isArray(tools)
+                                        ? tools
+                                                  .map((item) =>
+                                                          typeof item === "string" ? item.trim() : ""
+                                                  )
+                                                  .filter((item) => item.length > 0)
+                                        : [];
+
+                                if (sanitizedTools.length === 0) {
                                         setAvailableTools([]);
                                         form.setValue("selectedTools", []);
                                         setToolError("No tools were discovered for the provided server.");
                                         return;
                                 }
 
-                                setAvailableTools(tools);
-                                form.setValue("selectedTools", tools, { shouldDirty: true, shouldValidate: true });
-                                toast.success(`Loaded ${tools.length} MCPO tool${tools.length === 1 ? "" : "s"}.`);
+                                setAvailableTools(sanitizedTools);
+                                const previousSelection = form.getValues("selectedTools") ?? [];
+                                const filteredSelection = previousSelection.length
+                                        ? previousSelection.filter((tool) => sanitizedTools.includes(tool))
+                                        : sanitizedTools;
+                                form.setValue("selectedTools", filteredSelection, {
+                                        shouldDirty: true,
+                                        shouldValidate: true,
+                                });
+                                toast.success(
+                                        `Loaded ${sanitizedTools.length} MCPO tool${sanitizedTools.length === 1 ? "" : "s"}.`
+                                );
                         } catch (error) {
                                 console.error("Failed to load MCPO tools", error);
                                 const message =
@@ -177,6 +225,12 @@ export default function McpoConnectorPage() {
                 setIsSubmitting(true);
 
                 try {
+                        const sanitizedBaseUrl = values.baseUrl.trim().replace(/\/+$/, "");
+                        const sanitizedServerId = values.serverId
+                                .trim()
+                                .replace(/^\/+/, "")
+                                .replace(/\/+$/, "");
+
                         let staticArgs: Record<string, unknown> = {};
                         if (values.staticArgs && values.staticArgs.trim()) {
                                 try {
@@ -210,12 +264,15 @@ export default function McpoConnectorPage() {
                         }
 
                         const queryParam = values.queryParam?.trim() || "query";
+                        const openapiInput = values.openapiUrl?.trim() ?? "";
+                        const selectedTools = (values.selectedTools ?? [])
+                                .map((tool) => tool.trim())
+                                .filter((tool) => tool.length > 0);
+
                         const config: Record<string, unknown> = {
-                                MCPO_BASE_URL: values.baseUrl.trim(),
-                                MCPO_SERVER: values.serverId.trim(),
+                                MCPO_BASE_URL: sanitizedBaseUrl,
+                                MCPO_SERVER: sanitizedServerId,
                                 MCPO_STATIC_ARGS: staticArgs,
-                                MCPO_TOOLS: values.selectedTools,
-                                MCPO_OPENAPI_URL: values.openapiUrl.trim(),
                         };
 
                         if (values.apiKey && values.apiKey.trim()) {
@@ -232,6 +289,14 @@ export default function McpoConnectorPage() {
 
                         if (timeoutValue !== undefined) {
                                 config.MCPO_TIMEOUT = timeoutValue;
+                        }
+
+                        if (openapiInput) {
+                                config.MCPO_OPENAPI_URL = openapiInput;
+                        }
+
+                        if (selectedTools.length > 0) {
+                                config.MCPO_TOOLS = selectedTools;
                         }
 
                         await createConnector({
@@ -369,7 +434,7 @@ export default function McpoConnectorPage() {
                                                                                                                         />
                                                                                                                 </FormControl>
                                                                                                                 <FormDescription>
-                                                                                                                        SurfSense will inspect this schema to discover available tools.
+                                                                                                                        Optional. Leave blank to use the default <code>{baseUrl}/{server}/openapi.json</code>. Relative paths such as <code>openapi.json</code> are also supported.
                                                                                                                 </FormDescription>
                                                                                                                 <FormMessage />
                                                                                                         </FormItem>
@@ -513,7 +578,7 @@ export default function McpoConnectorPage() {
                                                                                                 <FormItem>
                                                                                                         <FormLabel>Tools to Query</FormLabel>
                                                                                                         <FormDescription>
-                                                                                                                Choose which MCPO tools SurfSense should call. Use "Load tools" to refresh the list from the OpenAPI schema.
+                                                                                                                Choose which MCPO tools SurfSense should call. Leave all unchecked to auto-discover tools from the OpenAPI schema at runtime.
                                                                                                         </FormDescription>
                                                                                                         <FormControl>
                                                                                                                 <div className="space-y-2 rounded-md border p-4">
@@ -591,7 +656,7 @@ export default function McpoConnectorPage() {
                                                                         1. Install the MCPO Control Panel and configure the MCP servers you want to expose. Each server appears under the Control Panel's base URL, e.g. <code>https://mcpo.example.com/github</code>.
                                                                 </p>
                                                                 <p>
-                                                                        2. After entering the base URL and server identifier, use the <em>Load tools</em> button to inspect the server's OpenAPI schema. Select one or more tools that should run for each SurfSense query.
+                                                                        2. After entering the base URL and server identifier, use the <em>Load tools</em> button to inspect the server's OpenAPI schema. Select specific tools if you want to pin the execution list, or leave everything unchecked to let SurfSense discover tools dynamically at query time.
                                                                 </p>
                                                                 <p>
                                                                         3. If the tool requires additional arguments besides the query, include them in the static arguments JSON. They will be merged into every MCPO request.

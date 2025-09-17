@@ -217,12 +217,35 @@ class SearchSourceConnectorBase(BaseModel):
                     + ", ".join(sorted(unexpected_keys))
                 )
 
-            missing_keys = [key for key in required_keys if not config.get(key)]
+            missing_keys = [key for key in required_keys if key not in config]
             if missing_keys:
                 raise ValueError(
                     "Missing required MCPO connector config values: "
                     + ", ".join(sorted(missing_keys))
                 )
+
+            base_url_value = config.get("MCPO_BASE_URL")
+            if not isinstance(base_url_value, str) or not base_url_value.strip():
+                raise ValueError("MCPO_BASE_URL must be a non-empty string")
+            sanitized_base_url = base_url_value.strip().rstrip("/")
+            config["MCPO_BASE_URL"] = sanitized_base_url
+
+            server_value = config.get("MCPO_SERVER")
+            if not isinstance(server_value, str) or not server_value.strip():
+                raise ValueError("MCPO_SERVER must be a non-empty string")
+            config["MCPO_SERVER"] = server_value.strip().strip("/")
+
+            openapi_value = config.get("MCPO_OPENAPI_URL")
+            if openapi_value in (None, ""):
+                config.pop("MCPO_OPENAPI_URL", None)
+            elif isinstance(openapi_value, str):
+                stripped_openapi = openapi_value.strip()
+                if stripped_openapi:
+                    config["MCPO_OPENAPI_URL"] = stripped_openapi
+                else:
+                    config.pop("MCPO_OPENAPI_URL", None)
+            else:
+                raise ValueError("MCPO_OPENAPI_URL must be a string if provided")
 
             static_args = config.get("MCPO_STATIC_ARGS")
             if static_args in (None, ""):
@@ -237,53 +260,76 @@ class SearchSourceConnectorBase(BaseModel):
                 if not isinstance(parsed_args, dict):
                     raise ValueError("MCPO_STATIC_ARGS must decode to a JSON object")
                 config["MCPO_STATIC_ARGS"] = parsed_args
-            elif not isinstance(static_args, dict):
+            elif isinstance(static_args, dict):
+                config["MCPO_STATIC_ARGS"] = static_args
+            else:
                 raise ValueError("MCPO_STATIC_ARGS must be provided as a dictionary")
 
+            result_path_value = config.get("MCPO_RESULT_PATH")
+            if isinstance(result_path_value, str):
+                stripped_result_path = result_path_value.strip()
+                if stripped_result_path:
+                    config["MCPO_RESULT_PATH"] = stripped_result_path
+                else:
+                    config.pop("MCPO_RESULT_PATH", None)
+            elif result_path_value is not None:
+                raise ValueError("MCPO_RESULT_PATH must be a string if provided")
+
             query_param = config.get("MCPO_QUERY_PARAM")
-            if isinstance(query_param, str) and query_param.strip() == "":
-                config["MCPO_QUERY_PARAM"] = None
+            if isinstance(query_param, str):
+                stripped_param = query_param.strip()
+                config["MCPO_QUERY_PARAM"] = stripped_param or None
+            elif query_param not in (None, ""):
+                raise ValueError("MCPO_QUERY_PARAM must be a string if provided")
 
             timeout_value = config.get("MCPO_TIMEOUT")
-            if timeout_value not in (None, ""):
+            if timeout_value in (None, ""):
+                config.pop("MCPO_TIMEOUT", None)
+            else:
                 try:
-                    float(timeout_value)
+                    config["MCPO_TIMEOUT"] = float(timeout_value)
                 except (TypeError, ValueError) as exc:
                     raise ValueError("MCPO_TIMEOUT must be a number") from exc
 
             tools_value = config.get("MCPO_TOOLS")
+            sanitized_tools: list[str] = []
             if tools_value in (None, ""):
-                config["MCPO_TOOLS"] = []
+                sanitized_tools = []
             elif isinstance(tools_value, str):
                 try:
                     parsed_tools = json.loads(tools_value)
                 except json.JSONDecodeError as exc:
                     raise ValueError("MCPO_TOOLS must be a JSON array of tool names") from exc
-                if isinstance(parsed_tools, list) and all(
-                    isinstance(item, str) and item.strip() for item in parsed_tools
-                ):
-                    config["MCPO_TOOLS"] = [item.strip() for item in parsed_tools]
+                if isinstance(parsed_tools, list):
+                    for item in parsed_tools:
+                        if not isinstance(item, str) or not item.strip():
+                            raise ValueError("MCPO_TOOLS entries must be non-empty strings")
+                        sanitized_tools.append(item.strip())
                 else:
                     raise ValueError("MCPO_TOOLS must be a JSON array of tool names")
             elif isinstance(tools_value, list):
-                sanitized_tools: list[str] = []
                 for item in tools_value:
                     if not isinstance(item, str) or not item.strip():
                         raise ValueError("MCPO_TOOLS entries must be non-empty strings")
                     sanitized_tools.append(item.strip())
-                config["MCPO_TOOLS"] = sanitized_tools
             else:
                 raise ValueError("MCPO_TOOLS must be provided as a list of strings")
 
             if "MCPO_TOOL" in config and config["MCPO_TOOL"] not in (None, ""):
                 tool_name = str(config["MCPO_TOOL"]).strip()
                 if tool_name:
-                    tools = config.get("MCPO_TOOLS") or []
-                    if isinstance(tools, list):
-                        if tool_name not in tools:
-                            tools.append(tool_name)
-                        config["MCPO_TOOLS"] = tools
+                    sanitized_tools.append(tool_name)
                 del config["MCPO_TOOL"]
+
+            unique_tools: list[str] = []
+            for tool_name in sanitized_tools:
+                if tool_name not in unique_tools:
+                    unique_tools.append(tool_name)
+
+            if unique_tools:
+                config["MCPO_TOOLS"] = unique_tools
+            else:
+                config.pop("MCPO_TOOLS", None)
 
         return config
 
