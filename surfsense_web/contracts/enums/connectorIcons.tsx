@@ -6,13 +6,14 @@ import {
 	IconBrandSlack,
 	IconBrandYoutube,
 	IconCalendar,
-	IconChecklist,
-	IconLayoutKanban,
-	IconLinkPlus,
-	IconMail,
-	IconTable,
-	IconTicket,
-	IconWorldWww,
+        IconChecklist,
+        IconLayoutKanban,
+        IconLinkPlus,
+        IconTopologyStar3,
+        IconMail,
+        IconTable,
+        IconTicket,
+        IconWorldWww,
 } from "@tabler/icons-react";
 import { File, Globe, Link, Microscope, Search, Sparkles, Telescope, Webhook } from "lucide-react";
 import { EnumConnectorName } from "./connector";
@@ -47,10 +48,12 @@ export const getConnectorIcon = (connectorType: EnumConnectorName | string, clas
 			return <IconTable {...iconProps} />;
 		case EnumConnectorName.CONFLUENCE_CONNECTOR:
 			return <IconBook {...iconProps} />;
-		case EnumConnectorName.CLICKUP_CONNECTOR:
-			return <IconChecklist {...iconProps} />;
-		// Additional cases for non-enum connector types
-		case "YOUTUBE_VIDEO":
+                case EnumConnectorName.CLICKUP_CONNECTOR:
+                        return <IconChecklist {...iconProps} />;
+                case EnumConnectorName.MCPO_CONNECTOR:
+                        return <IconTopologyStar3 {...iconProps} />;
+                // Additional cases for non-enum connector types
+                case "YOUTUBE_VIDEO":
 			return <IconBrandYoutube {...iconProps} />;
 		case "CRAWLED_URL":
 			return <Globe {...iconProps} />;

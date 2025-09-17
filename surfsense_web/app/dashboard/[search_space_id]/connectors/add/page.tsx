@@ -108,10 +108,10 @@ const connectorCategories: ConnectorCategory[] = [
 			},
 		],
 	},
-	{
-		id: "knowledge-bases",
-		title: "Knowledge Bases",
-		connectors: [
+        {
+                id: "knowledge-bases",
+                title: "Knowledge Bases",
+                connectors: [
 			{
 				id: "notion-connector",
 				title: "Notion",
@@ -139,13 +139,26 @@ const connectorCategories: ConnectorCategory[] = [
 				description: "Connect to Airtable to search records, tables and database content.",
 				icon: getConnectorIcon(EnumConnectorName.AIRTABLE_CONNECTOR, "h-6 w-6"),
 				status: "available",
-			},
-		],
-	},
-	{
-		id: "communication",
-		title: "Communication",
-		connectors: [
+                        },
+                ],
+        },
+        {
+                id: "mcpo",
+                title: "Model Context Protocol",
+                connectors: [
+                        {
+                                id: "mcpo-connector",
+                                title: "MCPO Connector",
+                                description: "Connect SurfSense to MCP servers managed by the MCPO Control Panel.",
+                                icon: getConnectorIcon(EnumConnectorName.MCPO_CONNECTOR, "h-6 w-6"),
+                                status: "available",
+                        },
+                ],
+        },
+        {
+                id: "communication",
+                title: "Communication",
+                connectors: [
 			{
 				id: "google-calendar-connector",
 				title: "Google Calendar",

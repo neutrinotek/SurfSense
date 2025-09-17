@@ -50,6 +50,7 @@ def get_connector_emoji(connector_name: str) -> str:
         "LINKUP_API": "🔗",
         "GOOGLE_CALENDAR_CONNECTOR": "📅",
         "AIRTABLE_CONNECTOR": "🗃️",
+        "MCPO_CONNECTOR": "🛠️",
     }
     return connector_emojis.get(connector_name, "🔎")
 
@@ -72,6 +73,7 @@ def get_connector_friendly_name(connector_name: str) -> str:
         "TAVILY_API": "Tavily Search",
         "LINKUP_API": "Linkup Search",
         "AIRTABLE_CONNECTOR": "Airtable",
+        "MCPO_CONNECTOR": "MCPO",
     }
     return connector_friendly_names.get(connector_name, connector_name)
 

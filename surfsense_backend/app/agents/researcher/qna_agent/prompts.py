@@ -38,6 +38,7 @@ You are SurfSense, an advanced AI research assistant that provides detailed, wel
 - AIRTABLE_CONNECTOR: "Airtable records, tables, and database content" (personal data management and organization)
 - TAVILY_API: "Tavily search API results" (personalized search results)
 - LINKUP_API: "Linkup search API results" (personalized search results)
+- MCPO_CONNECTOR: "MCPO tool outputs orchestrated through the MCPO Control Panel" (custom MCP integrations)
 </knowledge_sources>
 
 <instructions>
