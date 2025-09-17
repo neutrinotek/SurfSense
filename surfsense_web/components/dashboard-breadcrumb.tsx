@@ -75,19 +75,20 @@ export function DashboardBreadcrumb() {
 						// Handle specific connector types
 						if (subSection === "add" && segments[4]) {
 							const connectorType = segments[4];
-							const connectorLabels: Record<string, string> = {
-								"github-connector": "GitHub",
-								"jira-connector": "Jira",
-								"confluence-connector": "Confluence",
-								"discord-connector": "Discord",
-								"linear-connector": "Linear",
-								"clickup-connector": "ClickUp",
-								"slack-connector": "Slack",
-								"notion-connector": "Notion",
-								"tavily-api": "Tavily API",
-								"serper-api": "Serper API",
-								"linkup-api": "LinkUp API",
-							};
+                                                        const connectorLabels: Record<string, string> = {
+                                                                "github-connector": "GitHub",
+                                                                "jira-connector": "Jira",
+                                                                "confluence-connector": "Confluence",
+                                                                "discord-connector": "Discord",
+                                                                "linear-connector": "Linear",
+                                                                "clickup-connector": "ClickUp",
+                                                                "slack-connector": "Slack",
+                                                                "notion-connector": "Notion",
+                                                                "mcpo-connector": "MCPO Connector",
+                                                                "tavily-api": "Tavily API",
+                                                                "serper-api": "Serper API",
+                                                                "linkup-api": "LinkUp API",
+                                                        };
 
 							const connectorLabel = connectorLabels[connectorType] || connectorType;
 							breadcrumbs.push({

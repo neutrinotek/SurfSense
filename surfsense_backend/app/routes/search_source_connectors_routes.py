@@ -555,6 +555,12 @@ async def index_connector_content(
             )
             response_message = "Discord indexing started in the background."
 
+        elif connector.connector_type == SearchSourceConnectorType.MCPO_CONNECTOR:
+            raise HTTPException(
+                status_code=400,
+                detail="MCPO connectors execute MCP tools in real time and cannot be indexed.",
+            )
+
         else:
             raise HTTPException(
                 status_code=400,

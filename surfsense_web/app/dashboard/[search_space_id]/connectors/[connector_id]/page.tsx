@@ -48,13 +48,14 @@ const getConnectorTypeDisplay = (type: string): string => {
 		JIRA_CONNECTOR: "Jira Connector",
 		DISCORD_CONNECTOR: "Discord Connector",
 		LINKUP_API: "Linkup",
-		CONFLUENCE_CONNECTOR: "Confluence Connector",
-		CLICKUP_CONNECTOR: "ClickUp Connector",
-		GOOGLE_CALENDAR_CONNECTOR: "Google Calendar Connector",
-		GOOGLE_GMAIL_CONNECTOR: "Google Gmail Connector",
-		AIRTABLE_CONNECTOR: "Airtable Connector",
-		// Add other connector types here as needed
-	};
+                CONFLUENCE_CONNECTOR: "Confluence Connector",
+                CLICKUP_CONNECTOR: "ClickUp Connector",
+                GOOGLE_CALENDAR_CONNECTOR: "Google Calendar Connector",
+                GOOGLE_GMAIL_CONNECTOR: "Google Gmail Connector",
+                AIRTABLE_CONNECTOR: "Airtable Connector",
+                MCPO_CONNECTOR: "MCPO Connector",
+                // Add other connector types here as needed
+        };
 	return typeMap[type] || type;
 };
 
